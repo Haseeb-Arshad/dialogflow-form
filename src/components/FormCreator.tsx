@@ -537,8 +537,8 @@ const AIConfigSection = () => {
   const [maxTokens, setMaxTokens] = useState(150);
   
   const models = [
-    { text: "GPT-3.5 Turbo", value: "gpt-3.5-turbo" },
-    { text: "GPT-4", value: "gpt-4" },
+    { text: "GPT-3.5 Turbo", value: "gpt-4o-mini" },
+    { text: "GPT-4", value: "gpt-4o" },
   ];
 
   return (
