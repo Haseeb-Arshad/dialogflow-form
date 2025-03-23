@@ -1,7 +1,6 @@
-
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ConversationalForm, FormSubmission } from './formTypes';
+import { ConversationalForm, FormSubmission, FormSchedule, FormAIConfig } from './formTypes';
 import { v4 as uuidv4 } from 'uuid';
 
 interface FormState {
@@ -17,6 +16,9 @@ interface FormState {
   addSubmission: (submission: Omit<FormSubmission, 'id' | 'submittedAt'>) => void;
   getFormSubmissions: (formId: string) => FormSubmission[];
   setCurrentFormId: (id: string | null) => void;
+  toggleFormStatus: (id: string) => void;
+  updateFormSchedule: (id: string, schedule: FormSchedule) => void;
+  updateAIConfig: (id: string, aiConfig: FormAIConfig) => void;
 }
 
 export const useFormStore = create<FormState>()(
@@ -106,6 +108,43 @@ export const useFormStore = create<FormState>()(
       
       setCurrentFormId: (id) => {
         set({ currentFormId: id });
+      },
+      
+      toggleFormStatus: (id) => {
+        set((state) => ({
+          forms: state.forms.map((form) => {
+            if (form.id === id) {
+              const newStatus: FormStatus = form.status === 'active' ? 'paused' : 'active';
+              return {
+                ...form,
+                status: newStatus,
+                [newStatus === 'paused' ? 'lastPausedAt' : 'lastResumedAt']: new Date(),
+                updatedAt: new Date(),
+              };
+            }
+            return form;
+          }),
+        }));
+      },
+      
+      updateFormSchedule: (id, schedule) => {
+        set((state) => ({
+          forms: state.forms.map((form) => 
+            form.id === id 
+              ? { ...form, schedule, updatedAt: new Date() } 
+              : form
+          ),
+        }));
+      },
+      
+      updateAIConfig: (id, aiConfig) => {
+        set((state) => ({
+          forms: state.forms.map((form) => 
+            form.id === id 
+              ? { ...form, aiConfig, updatedAt: new Date() } 
+              : form
+          ),
+        }));
       },
     }),
     {

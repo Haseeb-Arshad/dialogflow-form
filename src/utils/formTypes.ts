@@ -1,3 +1,4 @@
+export type FormStatus = 'active' | 'paused' | 'expired';
 
 export interface FormQuestion {
   id: string;
@@ -19,6 +20,27 @@ export interface FormSubmission {
   submittedAt: Date;
 }
 
+export interface FormSchedule {
+  startDate: Date;
+  endDate: Date | null; // null means no expiration
+  timeZone: string;
+}
+
+export interface FormAnalytics {
+  totalViews: number;
+  totalResponses: number;
+  averageCompletionTime: number;
+  lastResponseDate?: Date;
+}
+
+export interface FormAIConfig {
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  responseInstructions: string;
+  behaviorGuidelines: string;
+}
+
 export interface ConversationalForm {
   id: string;
   title: string;
@@ -31,4 +53,10 @@ export interface ConversationalForm {
   welcomeMessage?: string;
   thankyouMessage?: string;
   isPublished: boolean;
+  status: FormStatus;
+  schedule: FormSchedule;
+  analytics: FormAnalytics;
+  aiConfig: FormAIConfig;
+  lastPausedAt?: Date;
+  lastResumedAt?: Date;
 }

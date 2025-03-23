@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useFormStore } from '@/utils/formStore';
 import { MessageSquare, AlertCircle } from 'lucide-react';
 import { Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Button as KendoButton } from '@progress/kendo-react-buttons';
 import ConversationalForm from '@/components/ConversationalForm';
 import { motion } from 'framer-motion';
 
@@ -14,7 +13,7 @@ const FillForm = () => {
   const { getForm } = useFormStore();
   const [form, setForm] = useState(formId ? getForm(formId) : null);
   const [loading, setLoading] = useState(true);
-  
+
   useEffect(() => {
     if (formId) {
       setTimeout(() => {
@@ -24,7 +23,7 @@ const FillForm = () => {
       }, 800); // Brief loading state for UX
     }
   }, [formId, getForm]);
-  
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -35,7 +34,7 @@ const FillForm = () => {
       </div>
     );
   }
-  
+
   if (!form) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -49,14 +48,14 @@ const FillForm = () => {
           <p className="text-muted-foreground mb-6">
             The form you're looking for doesn't exist or has been deleted.
           </p>
-          <Button onClick={() => navigate('/')} className="mx-auto">
+          <KendoButton onClick={() => navigate('/')} className="mx-auto">
             Go Home
-          </Button>
+          </KendoButton>
         </motion.div>
       </div>
     );
   }
-  
+
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-4xl mx-auto pt-6 pb-12">
@@ -64,14 +63,14 @@ const FillForm = () => {
           <MessageSquare className="h-6 w-6 text-primary mr-2" />
           <span className="text-xl font-semibold">Dialogflow</span>
         </div>
-        
+
         <div className="mb-8">
           <h1 className="text-2xl md:text-3xl font-bold mb-2">{form.title}</h1>
           {form.description && (
             <p className="text-muted-foreground">{form.description}</p>
           )}
         </div>
-        
+
         <ConversationalForm formId={form.id} />
       </div>
     </div>
