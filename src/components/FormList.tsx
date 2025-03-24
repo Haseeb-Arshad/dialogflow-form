@@ -1,10 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { useFormStore } from '@/utils/formStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { ErrorBoundary } from 'react-error-boundary';
 import {
   Edit,
   Trash2,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
+import { FormControl } from '@/components/FormControl';
 
 const FormList = () => {
   const { forms, deleteForm, publishForm, getFormSubmissions } = useFormStore();
@@ -109,23 +110,11 @@ const FormList = () => {
                   Updated {formatDistanceToNow(new Date(form.updatedAt), { addSuffix: true })}
                 </p>
               </CardHeader>
-              <CardContent className="flex-grow">
-                <p className="text-sm line-clamp-2 mb-3">
-                  {form.description || 'No description provided.'}
-                </p>
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="flex items-center">
-                    <BarChart className="h-4 w-4 mr-1 text-muted-foreground" />
-                    <span>{responseCount} {responseCount === 1 ? 'response' : 'responses'}</span>
-                  </div>
-                  <div className="flex items-center">
-                    <div className="h-4 w-4 mr-1 flex items-center justify-center">
-                      <span className="text-muted-foreground">Q</span>
-                    </div>
-                    <span>{form.questions.length} {form.questions.length === 1 ? 'question' : 'questions'}</span>
-                  </div>
-                </div>
-              </CardContent>
+              <CardContent>
+              <ErrorBoundary FallbackComponent={() => <p>Error loading form control</p>}>
+                <FormControl form={form} />
+              </ErrorBoundary>
+            </CardContent>
               <CardFooter className="flex flex-wrap gap-2 pt-2">
                 <Button
                   variant="outline"

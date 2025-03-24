@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +7,7 @@ import { ConversationalForm as FormType, FormResponse, FormQuestion } from '@/ut
 import { toast } from 'sonner';
 import { Send, Loader2, ThumbsUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Loader } from '@progress/kendo-react-indicators';
 
 interface ConversationalFormProps {
   formId: string;
@@ -87,7 +87,7 @@ const ConversationalForm: React.FC<ConversationalFormProps> = ({ formId }) => {
   };
   
   // Handle submitting a response
-  const handleSubmitResponse = () => {
+  const handleSubmitResponse = async () => {
     if (!currentInput.trim() || !currentQuestion) return;
     
     const userMessage: Message = {
@@ -101,63 +101,59 @@ const ConversationalForm: React.FC<ConversationalFormProps> = ({ formId }) => {
     setMessages((prev) => [...prev, userMessage]);
     
     // Add to responses for form submission
-    setResponses((prev) => [
-      ...prev,
-      {
-        questionId: currentQuestion.id,
-        answer: currentInput,
-      },
-    ]);
+    const newResponse = {
+      questionId: currentQuestion.id,
+      answer: currentInput,
+    };
     
-    // Clear input
+    setResponses((prev) => [...prev, newResponse]);
+    
+    // Clear input and set processing
     setCurrentInput('');
     setProcessing(true);
     
-    // Simulate AI thinking (for UX purposes)
-    setTimeout(() => {
-      // Move to next question
-      const nextIndex = currentQuestionIndex + 1;
+    // Move to next question or complete form
+    const nextIndex = currentQuestionIndex + 1;
+    
+    if (nextIndex < (form?.questions.length || 0)) {
+      const nextQuestion = form!.questions[nextIndex];
+      setCurrentQuestionIndex(nextIndex);
+      setCurrentQuestion(nextQuestion);
       
-      if (nextIndex < (form?.questions.length || 0)) {
-        const nextQuestion = form!.questions[nextIndex];
-        setCurrentQuestionIndex(nextIndex);
-        setCurrentQuestion(nextQuestion);
-        
-        // Add next question as a message
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `q-${nextQuestion.id}`,
-            content: nextQuestion.prompt,
-            sender: 'ai',
-            questionId: nextQuestion.id,
-          },
-        ]);
-      } else {
-        // Form is complete
-        setFormComplete(true);
-        setCurrentQuestion(null);
-        
-        // Add thank you message
-        const thankYouMessage = form?.thankyouMessage || 'Thank you for your responses!';
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: 'thank-you',
-            content: thankYouMessage,
-            sender: 'ai',
-          },
-        ]);
-        
-        // Submit the form responses
-        addSubmission({
-          formId: form!.id,
-          responses,
-        });
-      }
+      // Add next question as a message
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `q-${nextQuestion.id}`,
+          content: nextQuestion.prompt,
+          sender: 'ai',
+          questionId: nextQuestion.id,
+        },
+      ]);
+    } else {
+      // Form is complete - Submit all responses including the last one
+      setFormComplete(true);
+      setCurrentQuestion(null);
       
-      setProcessing(false);
-    }, 1000);
+      // Add thank you message
+      const thankYouMessage = form?.thankyouMessage || 'Thank you for your responses!';
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: 'thank-you',
+          content: thankYouMessage,
+          sender: 'ai',
+        },
+      ]);
+      
+      // Submit the form responses including the last answer
+      addSubmission({
+        formId: form!.id,
+        responses: [...responses, newResponse],
+      });
+    }
+    
+    setProcessing(false);
   };
   
   // Auto-scroll to bottom of messages
@@ -173,7 +169,11 @@ const ConversationalForm: React.FC<ConversationalFormProps> = ({ formId }) => {
   if (loading) {
     return (
       <div className="h-96 flex flex-col items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader 
+          type="converging-spinner"
+          themeColor="primary" 
+          size="large"
+        />
         <p className="mt-4 text-muted-foreground">Loading form...</p>
       </div>
     );

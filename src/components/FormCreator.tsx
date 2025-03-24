@@ -35,6 +35,12 @@ const FormCreator: React.FC<FormCreatorProps> = ({ editMode = false }) => {
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [thankyouMessage, setThankyouMessage] = useState('');
   const [activeTab, setActiveTab] = useState('questions');
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [hasExpiration, setHasExpiration] = useState(false);
+  const [model, setModel] = useState("gpt-3.5-turbo");
+  const [temperature, setTemperature] = useState(0.7);
+  const [maxTokens, setMaxTokens] = useState(150);
 
   useEffect(() => {
     if (editMode && formId) {
@@ -46,6 +52,12 @@ const FormCreator: React.FC<FormCreatorProps> = ({ editMode = false }) => {
         setAiInstructions(form.aiInstructions || '');
         setWelcomeMessage(form.welcomeMessage || '');
         setThankyouMessage(form.thankyouMessage || '');
+        setStartDate(new Date(form.schedule.startDate));
+        setEndDate(form.schedule.endDate ? new Date(form.schedule.endDate) : null);
+        setHasExpiration(!!form.schedule.endDate);
+        setModel(form.aiConfig.model);
+        setTemperature(form.aiConfig.temperature);
+        setMaxTokens(form.aiConfig.maxTokens);
       } else {
         toast.error('Form not found');
         navigate('/forms');
@@ -121,26 +133,39 @@ const FormCreator: React.FC<FormCreatorProps> = ({ editMode = false }) => {
     }
 
     try {
+      const formData = {
+        title,
+        description,
+        questions,
+        aiInstructions,
+        welcomeMessage,
+        thankyouMessage,
+        schedule: {
+          startDate: startDate,
+          endDate: hasExpiration ? endDate : null,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        aiConfig: {
+          model,
+          temperature,
+          maxTokens,
+          responseInstructions: aiInstructions,
+          behaviorGuidelines: "Be friendly and conversational. Ask follow-up questions when appropriate.",
+        },
+        status: 'active' as FormStatus,
+        analytics: {
+          totalViews: 0,
+          totalResponses: 0,
+          averageCompletionTime: 0,
+        },
+      };
+
       if (editMode && formId) {
-        updateForm(formId, {
-          title,
-          description,
-          questions,
-          aiInstructions,
-          welcomeMessage,
-          thankyouMessage,
-        });
+        updateForm(formId, formData);
         toast.success('Form updated successfully');
         navigate(`/view/${formId}`);
       } else {
-        const newFormId = addForm({
-          title,
-          description,
-          questions,
-          aiInstructions,
-          welcomeMessage,
-          thankyouMessage,
-        });
+        const newFormId = addForm(formData);
         toast.success('Form created successfully');
         navigate(`/view/${newFormId}`);
       }

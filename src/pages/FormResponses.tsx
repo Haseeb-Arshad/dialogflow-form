@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useFormStore } from '@/utils/formStore';
@@ -10,6 +9,8 @@ import Header from '@/components/Header';
 import AnimatedTransition from '@/components/AnimatedTransition';
 import { formatDistanceToNow } from 'date-fns';
 import { motion } from 'framer-motion';
+// import { ExcelExport } from '@progress/kendo-react-excel-export';
+import { Loader } from '@progress/kendo-react-indicators';
 
 const FormResponses = () => {
   const { formId } = useParams<{ formId: string }>();
@@ -17,6 +18,7 @@ const FormResponses = () => {
   const { getForm, getFormSubmissions } = useFormStore();
   const [form, setForm] = useState(formId ? getForm(formId) : null);
   const [submissions, setSubmissions] = useState(formId ? getFormSubmissions(formId) : []);
+  // const _exporter = React.useRef<ExcelExport | null>(null);
   
   useEffect(() => {
     if (formId) {
@@ -35,43 +37,27 @@ const FormResponses = () => {
   const exportResponses = () => {
     if (!form || submissions.length === 0) return;
     
-    try {
-      // Create CSV structure
-      const headers = ['Submission Date', ...form.questions.map(q => q.prompt)];
-      
-      const rows = submissions.map(sub => {
-        const submissionDate = new Date(sub.submittedAt).toLocaleString();
-        const answers = form.questions.map(question => {
-          const response = sub.responses.find(r => r.questionId === question.id);
-          return response ? response.answer : '';
-        });
-        
-        return [submissionDate, ...answers];
-      });
-      
-      // Convert to CSV string
-      const csvContent = [
-        headers.join(','),
-        ...rows.map(row => row.join(','))
-      ].join('\n');
-      
-      // Create and download file
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `${form.title.replace(/\s+/g, '_')}_responses.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      toast.success('Responses exported successfully');
-    } catch (error) {
-      toast.error('Failed to export responses');
-      console.error(error);
+    if (_exporter.current) {
+      _exporter.current.save();
     }
   };
+  
+  const excelData = React.useMemo(() => {
+    if (!form || !submissions.length) return [];
+
+    return submissions.map(sub => {
+      const data: Record<string, any> = {
+        'Submission Date': new Date(sub.submittedAt).toLocaleString()
+      };
+
+      form.questions.forEach(question => {
+        const response = sub.responses.find(r => r.questionId === question.id);
+        data[question.prompt] = response ? response.answer : '';
+      });
+
+      return data;
+    });
+  }, [form, submissions]);
   
   if (!form) return null;
   
@@ -94,7 +80,7 @@ const FormResponses = () => {
             {submissions.length > 0 && (
               <Button onClick={exportResponses} variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-1" />
-                Export to CSV
+                Export to Excel
               </Button>
             )}
           </div>
@@ -212,6 +198,7 @@ const FormResponses = () => {
           )}
         </div>
       </AnimatedTransition>
+    
     </div>
   );
 };
