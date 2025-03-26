@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useFormStore } from '@/utils/formStore';
 import { ConversationalForm as FormType, FormResponse, FormQuestion } from '@/utils/formTypes';
 import { toast } from 'sonner';
-import { Send, Loader2, ThumbsUp } from 'lucide-react';
+import { Send, Loader2, ThumbsUp, Mic, MicOff, Image, HelpCircle, Smile, Frown, Meh, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader } from '@progress/kendo-react-indicators';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import VoiceInput from '@/components/VoiceInput';
 
 interface ConversationalFormProps {
   formId: string;
@@ -18,7 +20,32 @@ interface Message {
   content: string;
   sender: 'ai' | 'user';
   questionId?: string;
+  mediaUrl?: string;
+  sentiment?: 'positive' | 'neutral' | 'negative';
 }
+
+// Simple sentiment analysis function
+const analyzeSentiment = (text: string): 'positive' | 'neutral' | 'negative' => {
+  const positiveWords = ['good', 'great', 'excellent', 'amazing', 'happy', 'love', 'like', 'yes', 'agree'];
+  const negativeWords = ['bad', 'terrible', 'awful', 'hate', 'dislike', 'no', 'disagree', 'poor', 'worst'];
+  
+  const lowerText = text.toLowerCase();
+  
+  let positiveScore = 0;
+  let negativeScore = 0;
+  
+  positiveWords.forEach(word => {
+    if (lowerText.includes(word)) positiveScore++;
+  });
+  
+  negativeWords.forEach(word => {
+    if (lowerText.includes(word)) negativeScore++;
+  });
+  
+  if (positiveScore > negativeScore) return 'positive';
+  if (negativeScore > positiveScore) return 'negative';
+  return 'neutral';
+};
 
 const ConversationalForm: React.FC<ConversationalFormProps> = ({ formId }) => {
   const { getForm, addSubmission } = useFormStore();
@@ -28,13 +55,18 @@ const ConversationalForm: React.FC<ConversationalFormProps> = ({ formId }) => {
   const [currentInput, setCurrentInput] = useState('');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(-1);
   const [currentQuestion, setCurrentQuestion] = useState<FormQuestion | null>(null);
-  const [responses, setResponses] = useState<FormResponse[]>([]);
+  const [formResponses, setFormResponses] = useState<FormResponse[]>([]);
+  const [responses, setResponses] = useState<Record<string, string>>({});
   const [formComplete, setFormComplete] = useState(false);
   const [formStarted, setFormStarted] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [mediaAttachment, setMediaAttachment] = useState<string | null>(null);
+  const [theme, setTheme] = useState<'default' | 'positive' | 'negative' | 'neutral'>('default');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Load form data
   useEffect(() => {
@@ -86,75 +118,162 @@ const ConversationalForm: React.FC<ConversationalFormProps> = ({ formId }) => {
     }
   };
   
+  // Handle speech result from VoiceInput
+  const handleSpeechResult = (text: string) => {
+    setCurrentInput(text);
+  };
+  
+  // Handle file upload
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Check file type and size
+    if (!file.type.startsWith('image/')) {
+      toast.error('Only image files are supported');
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast.error('File size should be less than 5MB');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setMediaAttachment(event.target.result as string);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+  
+  // Handle asking for clarification
+  const askForClarification = () => {
+    if (!currentQuestion) return;
+    
+    setProcessing(true);
+    
+    // Simulate AI thinking
+    setTimeout(() => {
+      const clarificationMessage: Message = {
+        id: `clarify-${currentQuestion.id}`,
+        content: `Let me clarify that question: "${currentQuestion.prompt}" is asking about ${
+          currentQuestion.type === 'email' ? 'your email address' : 
+          currentQuestion.type === 'number' ? 'a numerical value' : 
+          currentQuestion.type === 'multiline' ? 'a detailed response' : 
+          'your thoughts or preferences'
+        }. ${currentQuestion.helpText || 'Feel free to provide as much detail as you like.'}`,
+        sender: 'ai',
+      };
+      
+      setMessages(prev => [...prev, clarificationMessage]);
+      setProcessing(false);
+    }, 1000);
+  };
+  
   // Handle submitting a response
-  const handleSubmitResponse = async () => {
-    if (!currentInput.trim() || !currentQuestion) return;
+  const handleSubmitResponse = () => {
+    if ((!currentInput.trim() && !mediaAttachment) || !currentQuestion) return;
+    
+    // Analyze sentiment
+    const sentiment = analyzeSentiment(currentInput);
+    
+    // Update theme based on sentiment
+    setTheme(sentiment);
     
     const userMessage: Message = {
       id: `r-${currentQuestion.id}`,
       content: currentInput,
       sender: 'user',
       questionId: currentQuestion.id,
+      mediaUrl: mediaAttachment || undefined,
+      sentiment,
     };
     
     // Add user's response to messages
     setMessages((prev) => [...prev, userMessage]);
     
     // Add to responses for form submission
-    const newResponse = {
+    const newResponse: FormResponse = {
       questionId: currentQuestion.id,
       answer: currentInput,
     };
     
-    setResponses((prev) => [...prev, newResponse]);
+    setFormResponses(prev => [...prev, newResponse]);
+    setResponses(prev => ({
+      ...prev,
+      [currentQuestion.id]: currentInput,
+    }));
     
     // Clear input and set processing
     setCurrentInput('');
+    setMediaAttachment(null);
     setProcessing(true);
     
     // Move to next question or complete form
     const nextIndex = currentQuestionIndex + 1;
     
-    if (nextIndex < (form?.questions.length || 0)) {
-      const nextQuestion = form!.questions[nextIndex];
+    if (form && nextIndex < form.questions.length) {
+      const nextQuestion = form.questions[nextIndex];
       setCurrentQuestionIndex(nextIndex);
       setCurrentQuestion(nextQuestion);
       
       // Add next question as a message
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `q-${nextQuestion.id}`,
-          content: nextQuestion.prompt,
-          sender: 'ai',
-          questionId: nextQuestion.id,
-        },
-      ]);
+      setTimeout(() => {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `q-${nextQuestion.id}`,
+            content: nextQuestion.prompt,
+            sender: 'ai',
+            questionId: nextQuestion.id,
+          },
+        ]);
+        setProcessing(false);
+      }, 1000);
     } else {
-      // Form is complete - Submit all responses including the last one
+      // Form is complete - Submit all responses
+      if (form) {
+        addSubmission({
+          formId: form.id,
+          responses: formResponses,
+          submittedAt: new Date(),
+        });
+      }
+      
       setFormComplete(true);
       setCurrentQuestion(null);
       
       // Add thank you message
-      const thankYouMessage = form?.thankyouMessage || 'Thank you for your responses!';
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: 'thank-you',
-          content: thankYouMessage,
-          sender: 'ai',
-        },
-      ]);
-      
-      // Submit the form responses including the last answer
-      addSubmission({
-        formId: form!.id,
-        responses: [...responses, newResponse],
-      });
+      setTimeout(() => {
+        const thankYouMessage = form?.thankyouMessage || 'Thank you for your responses!';
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: 'thank-you',
+            content: thankYouMessage,
+            sender: 'ai',
+          },
+        ]);
+        setProcessing(false);
+      }, 1000);
     }
-    
-    setProcessing(false);
   };
+  
+  // Get theme class based on current theme
+  const getThemeClass = useCallback(() => {
+    switch (theme) {
+      case 'positive':
+        return 'bg-gradient-to-br from-green-50 to-blue-50 border-green-200';
+      case 'negative':
+        return 'bg-gradient-to-br from-red-50 to-orange-50 border-red-200';
+      case 'neutral':
+        return 'bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200';
+      default:
+        return 'bg-background/50 border-border';
+    }
+  }, [theme]);
   
   // Auto-scroll to bottom of messages
   useEffect(() => {
@@ -165,6 +284,20 @@ const ConversationalForm: React.FC<ConversationalFormProps> = ({ formId }) => {
       inputRef.current.focus();
     }
   }, [messages, currentQuestion, processing]);
+  
+  // Get sentiment icon
+  const getSentimentIcon = (sentiment?: 'positive' | 'neutral' | 'negative') => {
+    switch (sentiment) {
+      case 'positive':
+        return <Smile className="h-4 w-4 text-green-500" />;
+      case 'negative':
+        return <Frown className="h-4 w-4 text-red-500" />;
+      case 'neutral':
+        return <Meh className="h-4 w-4 text-blue-500" />;
+      default:
+        return null;
+    }
+  };
   
   if (loading) {
     return (
@@ -189,62 +322,63 @@ const ConversationalForm: React.FC<ConversationalFormProps> = ({ formId }) => {
   
   return (
     <div className="w-full max-w-2xl mx-auto">
-      <div className="flex flex-col h-[70vh] md:h-[600px] rounded-lg border border-border overflow-hidden glass">
-        {/* Header */}
-        <div className="p-4 border-b border-border bg-primary/5">
-          <h2 className="text-lg font-medium">{form.title}</h2>
-          {form.description && <p className="text-sm text-muted-foreground mt-1">{form.description}</p>}
-        </div>
+      <Card className={`overflow-hidden border shadow-md ${getThemeClass()}`}>
+        <CardHeader className="bg-background/50 backdrop-blur-sm border-b">
+          <CardTitle>{form.title}</CardTitle>
+          {form.description && <CardDescription>{form.description}</CardDescription>}
+        </CardHeader>
         
-        {/* Messages area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <AnimatePresence>
-            {messages.map((message) => (
-              <motion.div
-                key={message.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.3 }}
-                className={`chat-bubble ${
-                  message.sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'
-                }`}
-              >
-                {message.content}
-              </motion.div>
-            ))}
-          </AnimatePresence>
-          
-          {processing && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="chat-bubble chat-bubble-ai w-16"
-            >
-              <div className="loading-dots">
-                <div></div>
-                <div></div>
-                <div></div>
-              </div>
-            </motion.div>
-          )}
-          
-          <div ref={messagesEndRef} />
-        </div>
+        <CardContent className="p-0">
+          <div className="h-[400px] overflow-y-auto p-4 space-y-4">
+            <AnimatePresence>
+              {messages.map((message) => (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-lg p-3 ${
+                      message.sender === 'user'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-1">
+                      {message.sender === 'user' && message.sentiment && (
+                        <div className="ml-auto">{getSentimentIcon(message.sentiment)}</div>
+                      )}
+                    </div>
+                    <p className="text-sm">{message.content}</p>
+                    {message.mediaUrl && (
+                      <div className="mt-2">
+                        <img
+                          src={message.mediaUrl}
+                          alt="Attached media"
+                          className="max-w-full h-auto rounded-md"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            <div ref={messagesEndRef} />
+          </div>
+        </CardContent>
         
-        {/* Input area */}
-        <div className="p-4 border-t border-border bg-background/50">
+        <CardFooter className="border-t bg-background/50 backdrop-blur-sm p-4">
           {!formStarted ? (
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+            <Button 
+              onClick={startForm} 
+              className="w-full"
             >
-              <Button onClick={startForm} className="w-full">
-                Start Form
-              </Button>
-            </motion.div>
+              Start Form
+            </Button>
           ) : formComplete ? (
-            <div className="flex items-center justify-center py-2">
+            <div className="w-full flex items-center justify-center space-x-2">
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
@@ -255,47 +389,112 @@ const ConversationalForm: React.FC<ConversationalFormProps> = ({ formId }) => {
               <p className="ml-2 text-muted-foreground">Form completed! Thank you for your responses.</p>
             </div>
           ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSubmitResponse();
-              }}
-              className="flex items-center space-x-2"
-            >
-              {currentQuestion?.type === 'multiline' ? (
-                <Textarea
-                  value={currentInput}
-                  onChange={(e) => setCurrentInput(e.target.value)}
-                  placeholder="Type your response..."
-                  className="flex-1 min-h-[80px]"
-                  disabled={processing}
-                />
-              ) : (
-                <Input
-                  ref={inputRef}
-                  type={currentQuestion?.type === 'email' ? 'email' : currentQuestion?.type === 'number' ? 'number' : 'text'}
-                  value={currentInput}
-                  onChange={(e) => setCurrentInput(e.target.value)}
-                  placeholder="Type your response..."
-                  className="flex-1"
-                  disabled={processing}
-                />
+            <div className="w-full space-y-3">
+              {mediaAttachment && (
+                <div className="relative w-full rounded-md overflow-hidden border border-border">
+                  <img 
+                    src={mediaAttachment} 
+                    alt="Attached media" 
+                    className="max-w-full h-auto max-h-32 mx-auto"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    className="absolute top-1 right-1 h-6 w-6 rounded-full"
+                    onClick={() => setMediaAttachment(null)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
               )}
-              <Button
-                type="submit"
-                disabled={!currentInput.trim() || processing}
-                className="shrink-0"
+              
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSubmitResponse();
+                }}
+                className="flex flex-col space-y-2"
               >
-                {processing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
-            </form>
+                <div className="flex items-center space-x-2">
+                  {currentQuestion?.type === 'multiline' ? (
+                    <Textarea
+                      value={currentInput}
+                      onChange={(e) => setCurrentInput(e.target.value)}
+                      placeholder="Type your response..."
+                      className="flex-1 min-h-[80px]"
+                      disabled={processing}
+                    />
+                  ) : (
+                    <Input
+                      ref={inputRef}
+                      type={currentQuestion?.type === 'email' ? 'email' : currentQuestion?.type === 'number' ? 'number' : 'text'}
+                      value={currentInput}
+                      onChange={(e) => setCurrentInput(e.target.value)}
+                      placeholder="Type your response..."
+                      className="flex-1"
+                      disabled={processing}
+                    />
+                  )}
+                  <Button
+                    type="submit"
+                    disabled={(!currentInput.trim() && !mediaAttachment) || processing}
+                    className="shrink-0"
+                  >
+                    {processing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center space-x-2">
+                    <VoiceInput 
+                      onSpeechResult={handleSpeechResult}
+                      isListening={isListening}
+                      setIsListening={setIsListening}
+                      disabled={processing}
+                    />
+                    
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={processing}
+                      className="h-8 w-8 rounded-full"
+                    >
+                      <Image className="h-4 w-4" />
+                    </Button>
+                    
+                    <input 
+                      type="file" 
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                      accept="image/*"
+                      className="hidden"
+                      aria-label="Upload image"
+                    />
+                  </div>
+                  
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={askForClarification}
+                    disabled={processing}
+                    className="text-xs"
+                  >
+                    <HelpCircle className="h-3 w-3 mr-1" />
+                    Need help?
+                  </Button>
+                </div>
+              </form>
+            </div>
           )}
-        </div>
-      </div>
+        </CardFooter>
+      </Card>
     </div>
   );
 };

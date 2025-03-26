@@ -6,6 +6,7 @@ export interface FormQuestion {
   type: 'text' | 'multiline' | 'options' | 'yes-no' | 'rating' | 'email' | 'number';
   options?: string[];
   required: boolean;
+  helpText?: string;
 }
 
 export interface FormResponse {
