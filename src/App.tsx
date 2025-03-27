@@ -26,7 +26,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/create" element={<CreateForm />} />
-          <Route path="/edit/:formId" element={<EditForm />} />
+          {/* <Route path="/edit/:formId" element={<EditForm />} /> */}
           <Route path="/view/:formId" element={<ViewForm />} />
           <Route path="/responses/:formId" element={<FormResponses />} />
           <Route path="/forms" element={<MyForms />} />

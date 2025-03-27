@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { ConversationalForm, FormSubmission, FormSchedule, FormAIConfig } from './formTypes';
+import { ConversationalForm, FormSubmission, FormSchedule, FormAIConfig, FormStatus } from './formTypes';
 import { v4 as uuidv4 } from 'uuid';
 
 interface FormState {
@@ -35,8 +35,6 @@ export const useFormStore = create<FormState>()(
           id,
           createdAt: new Date(),
           updatedAt: new Date(),
-          shareLink: `${window.location.origin}/fill/${id}`,
-          isPublished: false,
         };
         
         set((state) => ({
@@ -69,7 +67,11 @@ export const useFormStore = create<FormState>()(
         set((state) => ({
           forms: state.forms.map((form) => 
             form.id === id 
-              ? { ...form, isPublished: true, shareLink, updatedAt: new Date() } 
+              ? { 
+                  ...form, 
+                  status: 'active' as FormStatus,
+                  updatedAt: new Date() 
+                } 
               : form
           ),
         }));
@@ -80,7 +82,11 @@ export const useFormStore = create<FormState>()(
         set((state) => ({
           forms: state.forms.map((form) => 
             form.id === id 
-              ? { ...form, isPublished: false, updatedAt: new Date() } 
+              ? { 
+                  ...form, 
+                  status: 'draft' as FormStatus,
+                  updatedAt: new Date() 
+                } 
               : form
           ),
         }));

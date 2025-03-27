@@ -1,17 +1,33 @@
-export type FormStatus = 'active' | 'paused' | 'expired';
+export type FormStatus = 'active' | 'paused' | 'draft' | 'archived';
 
 export interface FormQuestion {
   id: string;
   prompt: string;
-  type: 'text' | 'multiline' | 'options' | 'yes-no' | 'rating' | 'email' | 'number';
-  options?: string[];
+  type: 'text' | 'multiline' | 'yes-no' | 'options' | 'rating' | 'media';
   required: boolean;
-  helpText?: string;
+  options?: string[];
+  category?: string;
 }
 
 export interface FormResponse {
-  questionId: string;
-  answer: string;
+  id: string;
+  formId: string;
+  userId?: string;
+  userName?: string;
+  responses: Array<{
+    questionId: string;
+    question: string;
+    answer: string;
+    category?: string;
+  }>;
+  startedAt: Date;
+  completedAt: Date;
+  completionTime: number; // in seconds
+  metadata?: {
+    userAgent?: string;
+    ipAddress?: string;
+    location?: string;
+  };
 }
 
 export interface FormSubmission {
@@ -47,17 +63,42 @@ export interface ConversationalForm {
   title: string;
   description: string;
   questions: FormQuestion[];
-  createdAt: Date;
-  updatedAt: Date;
-  shareLink: string;
   aiInstructions?: string;
   welcomeMessage?: string;
   thankyouMessage?: string;
-  isPublished: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  schedule: {
+    startDate: Date;
+    endDate: Date | null;
+    timeZone: string;
+  };
+  aiConfig: {
+    model: string;
+    temperature: number;
+    maxTokens: number;
+    responseInstructions?: string;
+    behaviorGuidelines?: string;
+  };
   status: FormStatus;
-  schedule: FormSchedule;
-  analytics: FormAnalytics;
-  aiConfig: FormAIConfig;
-  lastPausedAt?: Date;
-  lastResumedAt?: Date;
+  analytics?: {
+    totalViews: number;
+    totalResponses: number;
+    averageCompletionTime: number;
+    responseHistory?: Array<{ date: string; count: number }>;
+  };
+  visualizations?: Array<{
+    id: string;
+    type: 'bar' | 'pie' | 'line' | 'area' | 'scatter';
+    title: string;
+    data: Array<Record<string, any>>;
+    config: Record<string, any>;
+  }>;
+  polls?: Array<{
+    id: string;
+    question: string;
+    options: string[];
+    allowMultipleSelections: boolean;
+    displayType: 'bar' | 'pie';
+  }>;
 }
